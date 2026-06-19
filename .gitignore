@@ -1,8 +1,10 @@
 # Python virtual environment
 .venv/
 
-# Output files (may contain sensitive AWS data)
+# Output files (may contain sensitive AWS data — excluded from repo)
 *.csv
+# Exception: the example output file (contains only fake sample data)
+!sg_search_results_example.csv
 
 # Python cache
 __pycache__/

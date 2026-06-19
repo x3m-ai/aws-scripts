@@ -1,0 +1,13 @@
+Type,AccountId,Region,GroupId,GroupName,AdditionalInfo,Description
+EC2 Security Group,103429827345,eu-west-1,sg-0a1b2c3d4e5f6a7b8,initial-garden-web,VpcId: vpc-0a1b2c3d4e5f6789,Allow HTTP/HTTPS inbound traffic for Garden web tier
+EC2 Security Group,103429827345,eu-west-1,sg-0b2c3d4e5f6a7b8c9,garden-app-internal,VpcId: vpc-0a1b2c3d4e5f6789,Internal communication for Garden application layer
+EC2 Security Group,103429827345,eu-west-1,sg-0c3d4e5f6a7b8c9d0,garden-db-access,VpcId: vpc-0a1b2c3d4e5f6789,Database access restricted to Garden app servers
+EC2 Security Group,103429827345,eu-west-2,sg-0d4e5f6a7b8c9d0e1,garden-monitoring,VpcId: vpc-0b2c3d4e5f6a7890,Monitoring and alerting for Garden environment
+Auto Scaling Group,103429827345,eu-west-1,arn:aws:autoscaling:eu-west-1:103429827345:autoScalingGroup:abc123,garden-web-asg,"Min: 2, Max: 10, Desired: 4",
+Auto Scaling Group,103429827345,eu-west-1,arn:aws:autoscaling:eu-west-1:103429827345:autoScalingGroup:def456,garden-app-asg,"Min: 2, Max: 8, Desired: 2",
+ELB Target Group,103429827345,eu-west-1,arn:aws:elasticloadbalancing:eu-west-1:103429827345:targetgroup/garden-web-tg/abc123,garden-web-tg,"Protocol: HTTP, Port: 8080, Type: instance",
+ELB Target Group,103429827345,eu-west-1,arn:aws:elasticloadbalancing:eu-west-1:103429827345:targetgroup/garden-api-tg/def456,garden-api-tg,"Protocol: HTTP, Port: 3000, Type: instance",
+Resource Group,103429827345,eu-west-1,arn:aws:resource-groups:eu-west-1:103429827345:group/garden-resources,garden-resources,,
+RDS Subnet Group,103429827345,eu-west-1,arn:aws:rds:eu-west-1:103429827345:subgrp:garden-db-subnet,garden-db-subnet,VpcId: vpc-0a1b2c3d4e5f6789,Subnet group for Garden RDS instances
+IAM User Group,103429827345,global,AGPAXYZ1234567890ABC,Garden-Developers,Path: /,
+IAM User Group,103429827345,global,AGPAXYZ0987654321DEF,Garden-ReadOnly,Path: /,
