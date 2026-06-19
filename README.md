@@ -18,17 +18,27 @@ CloudShell runs directly in your browser inside the AWS Console. Credentials are
 
 **1.** Log in to the AWS Console, then click the **CloudShell icon** in the top navigation bar (terminal icon, next to the bell icon).
 
-**2.** Upload the script — click **Actions → Upload file** and select `find_security_groups.py`.
-
-**3.** Install boto3 and run the script:
+**2.** First time only — clone the repository:
 ```bash
+git clone https://github.com/x3m-ai/aws-scripts.git
+cd aws-scripts
 pip install boto3
+```
+
+**2b.** From the second time onwards — just pull the latest version:
+```bash
+cd aws-scripts
+git pull
+```
+
+**3.** Run the script:
+```bash
 python find_security_groups.py "Garden"
 ```
 
 **4.** Download the results — click **Actions → Download file** and type:
 ```
-sg_search_results.csv
+/home/cloudshell-user/aws-scripts/sg_search_results.csv
 ```
 
 > **Note:** When using CloudShell, make sure `PROFILE_NAME = None` in the script (this is the default).
