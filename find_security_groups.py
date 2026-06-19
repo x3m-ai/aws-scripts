@@ -18,7 +18,11 @@ import argparse
 import boto3
 import csv
 import os
+import sys
 from datetime import datetime
+from openpyxl import Workbook
+from openpyxl.styles import Font, PatternFill, Alignment
+from openpyxl.utils import get_column_letter
 
 
 # ── CONFIGURATION ─────────────────────────────────────────────────────────────
@@ -31,8 +35,9 @@ PROFILE_NAME = None  # Change to your SSO profile name if running locally (e.g. 
 # Leave empty [] to automatically scan ALL available AWS regions.
 REGIONS = []
 
-# Output CSV file path (same folder as this script)
-OUTPUT_FILE = os.path.join(os.path.dirname(__file__), "sg_search_results.csv")
+# Output file paths (same folder as this script)
+OUTPUT_XLSX = os.path.join(os.path.dirname(os.path.abspath(__file__)), "sg_search_results.xlsx")
+OUTPUT_LOG  = os.path.join(os.path.dirname(os.path.abspath(__file__)), "sg_search_results.log")
 # ──────────────────────────────────────────────────────────────────────────────
 
 
@@ -321,6 +326,67 @@ GLOBAL_SEARCHERS = [
 ]
 
 
+# ─── TEE LOGGER ───────────────────────────────────────────────────────────────
+
+class Tee:
+    """Write all stdout output to both the console and a log file simultaneously."""
+    def __init__(self, log_path):
+        self.terminal = sys.stdout
+        self.log = open(log_path, "w", encoding="utf-8")
+
+    def write(self, message):
+        self.terminal.write(message)
+        self.log.write(message)
+
+    def flush(self):
+        self.terminal.flush()
+        self.log.flush()
+
+    def close(self):
+        sys.stdout = self.terminal
+        self.log.close()
+
+
+# ─── EXCEL WRITER ─────────────────────────────────────────────────────────────
+
+def write_xlsx(results, filepath):
+    """Write results to a formatted Excel file. AccountId is forced to text to prevent scientific notation."""
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "AWS Groups"
+
+    fieldnames = ["Type", "AccountId", "Region", "GroupId", "GroupName", "AdditionalInfo", "Description"]
+
+    # Header row styling
+    header_fill = PatternFill(start_color="2E75B6", end_color="2E75B6", fill_type="solid")
+    header_font = Font(color="FFFFFF", bold=True)
+    for col_idx, field in enumerate(fieldnames, start=1):
+        cell = ws.cell(row=1, column=col_idx, value=field)
+        cell.fill = header_fill
+        cell.font = header_font
+        cell.alignment = Alignment(horizontal="center")
+
+    # Data rows — AccountId written as explicit text to prevent scientific notation
+    for row_idx, record in enumerate(results, start=2):
+        for col_idx, field in enumerate(fieldnames, start=1):
+            value = record.get(field, "")
+            cell = ws.cell(row=row_idx, column=col_idx, value=value)
+            # Force AccountId column to text format
+            if field == "AccountId":
+                cell.number_format = "@"
+                cell.value = str(value)
+
+    # Auto-fit column widths
+    for col_idx, field in enumerate(fieldnames, start=1):
+        max_len = max(
+            len(field),
+            *(len(str(row.get(field, ""))) for row in results)
+        ) if results else len(field)
+        ws.column_dimensions[get_column_letter(col_idx)].width = min(max_len + 4, 60)
+
+    wb.save(filepath)
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Find AWS groups of any type matching a name query and export to CSV.",
@@ -362,6 +428,10 @@ examples:
 
     mode, terms = parse_query(args.query)
     case_sensitive = args.case_sensitive
+
+    # Start logging — all output goes to both console and log file
+    tee = Tee(OUTPUT_LOG)
+    sys.stdout = tee
 
     print("=" * 60)
     print("  AWS Group Finder")
@@ -406,16 +476,15 @@ examples:
     print(f"{'=' * 60}")
 
     if all_results:
-        fieldnames = ["Type", "AccountId", "Region", "GroupId", "GroupName", "AdditionalInfo", "Description"]
-        with open(OUTPUT_FILE, "w", newline="", encoding="utf-8") as csvfile:
-            writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
-            writer.writeheader()
-            writer.writerows(all_results)
-        print(f"  Results saved to: {OUTPUT_FILE}")
+        write_xlsx(all_results, OUTPUT_XLSX)
+        print(f"  Excel file : {OUTPUT_XLSX}")
+        print(f"  Log file   : {OUTPUT_LOG}")
     else:
         print("  No matching groups found.")
 
-    print("\nDone.")
+    print(f"\nCompleted: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    print("Done.")
+    tee.close()
 
 
 if __name__ == "__main__":
