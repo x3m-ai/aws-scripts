@@ -18,15 +18,15 @@ CloudShell runs directly in your browser inside the AWS Console. Credentials are
 
 **1.** Log in to the AWS Console, then click the **CloudShell icon** in the top navigation bar (terminal icon, next to the bell icon).
 
-**2.** First time only — clone the repository:
+**2.** Get the script — run one of the following depending on your situation:
+
 ```bash
+# If aws-scripts folder does NOT exist yet (very first time):
 git clone https://github.com/x3m-ai/aws-scripts.git
 cd aws-scripts
 pip install boto3
-```
 
-**2b.** From the second time onwards — just pull the latest version:
-```bash
+# If aws-scripts folder already exists (every other time):
 cd aws-scripts
 git pull
 ```
