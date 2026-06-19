@@ -1,6 +1,6 @@
-# SGN - Garden Security Group Finder
+# Garden Security Group Finder
 
-This script scans your AWS account across all regions and extracts every **Security Group whose name contains the word "garden"**. Results are exported to a CSV file.
+This script scans an AWS account across all regions and extracts every **Security Group whose name contains the word "garden"**. Results are exported to a CSV file.
 
 ---
 
@@ -39,14 +39,14 @@ Follow the [SSO one-time setup](#aws-credentials-configuration-sso) below, then:
 
 **1.** Log in via AWS SSO:
 ```powershell
-aws sso login --profile sgn-sandbox
+aws sso login --profile <your-profile-name>
 ```
 
-**2.** Set `PROFILE_NAME = "sgn-sandbox"` at the top of `find_garden_security_groups.py`.
+**2.** Set `PROFILE_NAME = "<your-profile-name>"` at the top of `find_garden_security_groups.py`.
 
 **3.** Run the script:
 ```powershell
-"c:/Users/ninoc/Desktop/SGN/AWS accounts/.venv/Scripts/python.exe" "c:/Users/ninoc/Desktop/SGN/AWS accounts/find_garden_security_groups.py"
+python find_garden_security_groups.py
 ```
 
 **4.** Open the results:
@@ -79,18 +79,20 @@ If not installed, follow the official guide: [https://docs.aws.amazon.com/cli/la
 ---
 
 ### 3. boto3 (Python AWS SDK)
-boto3 is already installed in the virtual environment included in this project folder (`.venv`).
-
-To verify it is available, run:
+Install it with:
 ```powershell
-"c:/Users/ninoc/Desktop/SGN/AWS accounts/.venv/Scripts/python.exe" -c "import boto3; print(boto3.__version__)"
+pip install boto3
+```
+Verify it is available:
+```powershell
+python -c "import boto3; print(boto3.__version__)"
 ```
 
 ---
 
 ## AWS Credentials Configuration (SSO)
 
-The SGN Sandbox account uses **AWS Single Sign-On (SSO)** via federated identity. You do **not** need an Access Key or Secret Key. Follow the steps below.
+This script supports **AWS Single Sign-On (SSO)** via federated identity. You do **not** need an Access Key or Secret Key. Follow the steps below.
 
 ---
 
@@ -106,15 +108,15 @@ Enter the values below when prompted:
 
 | Field | Value |
 |---|---|
-| SSO session name | `sgn-sandbox` |
+| SSO session name | `<your-profile-name>` |
 | SSO start URL | *(see how to find it below)* |
-| SSO region | `eu-west-1` |
+| SSO region | Your AWS region (e.g. `eu-west-1`) |
 | SSO registration scopes | Press Enter to accept default |
-| Account ID | `103429827345` |
-| Role | `SGN-Account-Admin` |
-| Default region | `eu-west-1` |
+| Account ID | Your AWS Account ID |
+| Role | Your assigned role name |
+| Default region | Your AWS region |
 | Default output format | `json` |
-| Profile name | `sgn-sandbox` |
+| Profile name | `<your-profile-name>` |
 
 > **Note:** The SSO start URL must match the one your company uses. If unsure, ask your IT / Cloud team.
 
@@ -122,10 +124,9 @@ Enter the values below when prompted:
 
 You already have access to the AWS portal, so the URL is right in front of you:
 
-1. Open your browser and go to the AWS portal login page (the page where you sign in to access SGN's AWS accounts)
-2. **The URL in your browser bar IS the SSO Start URL** — it will look like one of these:
+1. Open your browser and go to the AWS portal login page (the page where you select your AWS account before entering the Console)
+2. **The URL in your browser bar IS the SSO Start URL** — it will look like:
    - `https://d-xxxxxxxxxx.awsapps.com/start`
-   - `https://sgn.awsapps.com/start`
 3. Copy everything up to and including `/start`
 
 Alternatively, find it in the AWS Console:
@@ -140,25 +141,25 @@ Alternatively, find it in the AWS Console:
 Each time you start a new terminal session, authenticate first:
 
 ```powershell
-aws sso login --profile sgn-sandbox
+aws sso login --profile <your-profile-name>
 ```
 
-This will open a browser window asking you to confirm the login with your SGN corporate credentials (`Antonino.Crudele@sgn.co.uk`). Once approved, return to the terminal.
+This will open a browser window asking you to confirm the login with your corporate credentials. Once approved, return to the terminal.
 
 ---
 
 ### Step 3 — Verify the login worked
 
 ```powershell
-aws sts get-caller-identity --profile sgn-sandbox
+aws sts get-caller-identity --profile <your-profile-name>
 ```
 
 Expected output:
 ```json
 {
     "UserId": "...",
-    "Account": "103429827345",
-    "Arn": "arn:aws:sts::103429827345:assumed-role/SGN-Account-Admin/Antonino.Crudele@sgn.co.uk"
+    "Account": "<your-account-id>",
+    "Arn": "arn:aws:sts::<your-account-id>:assumed-role/<your-role>/<your-username>"
 }
 ```
 
@@ -169,8 +170,8 @@ Expected output:
 Once logged in via SSO (Step 2 above), run the script using the virtual environment Python interpreter:
 
 ```powershell
-aws sso login --profile sgn-sandbox
-"c:/Users/ninoc/Desktop/SGN/AWS accounts/.venv/Scripts/python.exe" "c:/Users/ninoc/Desktop/SGN/AWS accounts/find_garden_security_groups.py"
+aws sso login --profile <your-profile-name>
+python find_garden_security_groups.py
 ```
 
 The script will:
@@ -216,8 +217,8 @@ REGIONS = ["eu-west-1", "eu-west-2", "eu-central-1"]
 
 | Problem | Solution |
 |---|---|
-| `Unable to locate credentials` | Run `aws sso login --profile sgn-sandbox` first |
-| `Token has expired` | Your SSO session expired — run `aws sso login --profile sgn-sandbox` again |
+| `Unable to locate credentials` | Run `aws sso login --profile <your-profile-name>` first |
+| `Token has expired` | Your SSO session expired — run `aws sso login --profile <your-profile-name>` again |
 | `AuthFailure` or `InvalidClientTokenId` | Wrong profile name — check `PROFILE_NAME` in the script matches your SSO profile |
 | `AccessDenied` in a region | Your role may not have `ec2:DescribeSecurityGroups` permission |
 | No results in CSV | No Security Groups with "garden" in the name were found in any region |

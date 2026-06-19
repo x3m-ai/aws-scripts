@@ -13,8 +13,8 @@ from datetime import datetime
 # ── CONFIGURATION ─────────────────────────────────────────────────────────────
 # AWS SSO profile name (set during 'aws configure sso').
 # Set to None when running inside AWS CloudShell (credentials are automatic).
-# Set to "sgn-sandbox" when running locally after 'aws sso login --profile sgn-sandbox'.
-PROFILE_NAME = None  # Change to "sgn-sandbox" if running locally
+# Set to your profile name when running locally after 'aws sso login --profile <your-profile>'.
+PROFILE_NAME = None  # Change to your SSO profile name if running locally (e.g. "my-profile")
 
 # If you want to scan specific regions only, list them here.
 # Leave empty [] to automatically scan ALL available AWS regions.
@@ -60,13 +60,13 @@ def find_garden_sgs_in_region(session, region):
 
 def main():
     print("=" * 60)
-    print("  SGN - Garden Security Group Finder")
+    print("  Garden Security Group Finder")
     print(f"  Started: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print("=" * 60)
 
     # Create a boto3 session.
     # - When running in AWS CloudShell: set PROFILE_NAME = None (credentials are automatic)
-    # - When running locally after SSO login: set PROFILE_NAME = "sgn-sandbox"
+    # - When running locally after SSO login: set PROFILE_NAME to your configured profile name
     session = boto3.Session(profile_name=PROFILE_NAME) if PROFILE_NAME else boto3.Session()
 
     # Determine which regions to scan
