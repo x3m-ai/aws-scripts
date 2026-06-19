@@ -1,6 +1,10 @@
 """
 Script: find_security_groups.py
-Purpose: Find AWS Security Groups matching a name query and export results to CSV.
+Purpose: Find AWS groups (of any type) matching a name query and export results to CSV.
+
+Group types searched:
+  - EC2 Security Groups  (per region)
+  - IAM User Groups      (global)
 
 Usage:
   python find_security_groups.py "Garden"
@@ -78,7 +82,7 @@ def get_all_regions(session):
 
 
 def find_matching_sgs_in_region(session, region, mode, terms, case_sensitive=False):
-    """Return Security Groups matching the query in a given region."""
+    """Return EC2 Security Groups matching the query in a given region."""
     ec2 = session.client("ec2", region_name=region)
     results = []
 
@@ -96,23 +100,50 @@ def find_matching_sgs_in_region(session, region, mode, terms, case_sensitive=Fal
             aws_filters = []  # fetch all, filter client-side
 
         paginator = ec2.get_paginator("describe_security_groups")
-        pages = paginator.paginate(
-            Filters=aws_filters
-        )
+        pages = paginator.paginate(Filters=aws_filters)
         for page in pages:
             for sg in page["SecurityGroups"]:
-                # Client-side match (handles both case modes correctly)
                 if matches(sg["GroupName"], mode, terms, case_sensitive):
                     results.append({
+                        "Type": "EC2 Security Group",
                         "AccountId": sg.get("OwnerId", "N/A"),
                         "Region": region,
-                        "SecurityGroupId": sg["GroupId"],
-                        "SecurityGroupName": sg["GroupName"],
-                        "VpcId": sg.get("VpcId", "N/A"),
+                        "GroupId": sg["GroupId"],
+                        "GroupName": sg["GroupName"],
+                        "AdditionalInfo": f"VpcId: {sg.get('VpcId', 'N/A')}",
                         "Description": sg.get("Description", ""),
                     })
     except Exception as e:
         print(f"  [!] Error in region {region}: {e}")
+
+    return results
+
+
+def find_matching_iam_groups(session, mode, terms, case_sensitive=False):
+    """Return IAM User Groups matching the query (IAM is a global service)."""
+    iam = session.client("iam")
+    results = []
+
+    try:
+        # Retrieve the account ID
+        sts = session.client("sts")
+        account_id = sts.get_caller_identity()["Account"]
+
+        paginator = iam.get_paginator("list_groups")
+        for page in paginator.paginate():
+            for group in page["Groups"]:
+                if matches(group["GroupName"], mode, terms, case_sensitive):
+                    results.append({
+                        "Type": "IAM User Group",
+                        "AccountId": account_id,
+                        "Region": "global",
+                        "GroupId": group["GroupId"],
+                        "GroupName": group["GroupName"],
+                        "AdditionalInfo": f"Path: {group.get('Path', '/')}",
+                        "Description": "",
+                    })
+    except Exception as e:
+        print(f"  [!] Error fetching IAM groups: {e}")
 
     return results
 
@@ -124,19 +155,19 @@ def main():
         epilog="""
 examples:
   python find_security_groups.py "Garden"
-      -> finds all SGs whose name contains 'garden' (case-insensitive, default)
+      -> finds all groups (EC2 SGs + IAM) whose name contains 'garden' (case-insensitive)
 
   python find_security_groups.py "Garden&Prod"
-      -> finds all SGs whose name contains BOTH 'garden' AND 'prod'
+      -> finds all groups whose name contains BOTH 'garden' AND 'prod'
 
   python find_security_groups.py "Garden|Dev"
-      -> finds all SGs whose name contains 'garden' OR 'dev'
+      -> finds all groups whose name contains 'garden' OR 'dev'
 
   python find_security_groups.py "Initial Garden"
-      -> finds all SGs whose name contains the exact substring 'initial garden'
+      -> finds all groups whose name contains the exact substring 'initial garden'
 
   python find_security_groups.py "Garden" --case-sensitive
-      -> finds only SGs whose name contains 'Garden' with exact casing
+      -> finds only groups whose name contains 'Garden' with exact casing
         """
     )
     parser.add_argument(
@@ -155,10 +186,11 @@ examples:
     case_sensitive = args.case_sensitive
 
     print("=" * 60)
-    print("  Security Group Finder")
+    print("  AWS Group Finder")
     print(f"  Query          : {args.query}")
     print(f"  Mode           : {mode.upper()} — terms: {terms}")
     print(f"  Case-sensitive : {case_sensitive}")
+    print(f"  Types searched : EC2 Security Groups, IAM User Groups")
     print(f"  Started        : {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print("=" * 60)
 
@@ -169,28 +201,34 @@ examples:
 
     # Determine which regions to scan
     regions_to_scan = REGIONS if REGIONS else get_all_regions(session)
-    print(f"\nScanning {len(regions_to_scan)} region(s)...\n")
+    print(f"\nScanning {len(regions_to_scan)} region(s) for EC2 Security Groups...\n")
 
     all_results = []
 
     for region in regions_to_scan:
-        print(f"  Checking region: {region} ...", end=" ")
+        print(f"  [EC2] Checking region: {region} ...", end=" ")
         found = find_matching_sgs_in_region(session, region, mode, terms, case_sensitive)
-        print(f"{len(found)} SG(s) found")
+        print(f"{len(found)} found")
         all_results.extend(found)
 
+    # Search IAM User Groups (global, called once)
+    print(f"\n  [IAM] Searching IAM User Groups (global) ...", end=" ")
+    iam_found = find_matching_iam_groups(session, mode, terms, case_sensitive)
+    print(f"{len(iam_found)} found")
+    all_results.extend(iam_found)
+
     # Write results to CSV
-    print(f"\nTotal Security Groups found: {len(all_results)}")
+    print(f"\nTotal groups found: {len(all_results)}")
 
     if all_results:
-        fieldnames = ["AccountId", "Region", "SecurityGroupId", "SecurityGroupName", "VpcId", "Description"]
+        fieldnames = ["Type", "AccountId", "Region", "GroupId", "GroupName", "AdditionalInfo", "Description"]
         with open(OUTPUT_FILE, "w", newline="", encoding="utf-8") as csvfile:
             writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
             writer.writeheader()
             writer.writerows(all_results)
         print(f"Results saved to: {OUTPUT_FILE}")
     else:
-        print("No matching Security Groups found.")
+        print("No matching groups found.")
 
     print("\nDone.")
 
