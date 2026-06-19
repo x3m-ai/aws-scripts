@@ -1,6 +1,8 @@
-# Garden Security Group Finder
+# Security Group Finder
 
-This script scans an AWS account across all regions and extracts every **Security Group whose name contains the word "garden"**. Results are exported to a CSV file.
+This script scans an AWS account across all regions and finds Security Groups matching a name query. Results are exported to a CSV file.
+
+Supports **AND**, **OR**, and **exact substring** search — always case-insensitive.
 
 ---
 
@@ -16,20 +18,31 @@ CloudShell runs directly in your browser inside the AWS Console. Credentials are
 
 **1.** Log in to the AWS Console, then click the **CloudShell icon** in the top navigation bar (terminal icon, next to the bell icon).
 
-**2.** Upload the script — click **Actions → Upload file** and select `find_garden_security_groups.py`.
+**2.** Upload the script — click **Actions → Upload file** and select `find_security_groups.py`.
 
 **3.** Install boto3 and run the script:
 ```bash
 pip install boto3
-python find_garden_security_groups.py
+python find_security_groups.py "Garden"
 ```
 
 **4.** Download the results — click **Actions → Download file** and type:
 ```
-garden_security_groups.csv
+sg_search_results.csv
 ```
 
 > **Note:** When using CloudShell, make sure `PROFILE_NAME = None` in the script (this is the default).
+
+---
+
+### Query Syntax
+
+| Syntax | Behaviour | Example |
+|---|---|---|
+| `"Garden"` | Name contains **garden** (case-insensitive) | finds `Garden-Web`, `my-garden-sg` |
+| `"Garden&Prod"` | Name contains **garden AND prod** | finds `Garden-Prod-01` |
+| `"Garden\|Dev"` | Name contains **garden OR dev** | finds `Garden-Web` or `Dev-Access` |
+| `"Initial Garden"` | Name contains exact substring **initial garden** | finds `initial-garden-sg` |
 
 ---
 
@@ -42,11 +55,11 @@ Follow the [SSO one-time setup](#aws-credentials-configuration-sso) below, then:
 aws sso login --profile <your-profile-name>
 ```
 
-**2.** Set `PROFILE_NAME = "<your-profile-name>"` at the top of `find_garden_security_groups.py`.
+**2.** Set `PROFILE_NAME = "<your-profile-name>"` at the top of `find_security_groups.py`.
 
 **3.** Run the script:
 ```powershell
-python find_garden_security_groups.py
+python find_security_groups.py "Garden"
 ```
 
 **4.** Open the results:
@@ -186,7 +199,7 @@ The script will:
 
 The results are saved to:
 ```
-garden_security_groups.csv
+sg_search_results.csv
 ```
 
 The CSV contains the following columns:
@@ -204,7 +217,7 @@ The CSV contains the following columns:
 
 ## Scanning Specific Regions Only (Optional)
 
-By default, the script scans **all available AWS regions**. If you want to restrict the scan to specific regions, open `find_garden_security_groups.py` and edit the `REGIONS` list at the top of the file:
+By default, the script scans **all available AWS regions**. If you want to restrict the scan to specific regions, open `find_security_groups.py` and edit the `REGIONS` list at the top of the file:
 
 ```python
 # Example: scan only EU regions
