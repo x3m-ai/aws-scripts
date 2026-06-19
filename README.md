@@ -1,8 +1,19 @@
-# Security Group Finder
+# AWS Group Finder
 
-This script scans an AWS account across all regions and finds Security Groups matching a name query. Results are exported to a CSV file.
+This script scans an AWS account across all regions and finds **all types of AWS groups** matching a name query. Results are exported to a formatted **Excel file (.xlsx)**. A **log file** of the full execution is also saved.
 
-Supports **AND**, **OR**, and **exact substring** search — always case-insensitive.
+Group types searched:
+- EC2 Security Groups
+- Auto Scaling Groups
+- ELB Target Groups
+- Resource Groups
+- RDS Subnet Groups
+- ElastiCache Subnet Groups
+- EC2 Placement Groups
+- IAM User Groups
+- AWS Organizations OUs
+
+Supports **AND** (`&`), **OR** (`|`), and **exact substring** search — always case-insensitive by default.
 
 ---
 
@@ -24,7 +35,7 @@ CloudShell runs directly in your browser inside the AWS Console. Credentials are
 # If aws-scripts folder does NOT exist yet (very first time):
 git clone https://github.com/x3m-ai/aws-scripts.git
 cd aws-scripts
-pip install boto3
+pip install boto3 openpyxl
 
 # If aws-scripts folder already exists (every other time):
 cd aws-scripts
@@ -36,9 +47,12 @@ git pull
 python find_security_groups.py "Garden"
 ```
 
-**4.** Download the results — click **Actions → Download file** and type:
+**4.** Download the output files — click **Actions → Download file** and enter each path:
 ```
-/home/cloudshell-user/aws-scripts/sg_search_results.csv
+/home/cloudshell-user/aws-scripts/sg_search_results.xlsx
+```
+```
+/home/cloudshell-user/aws-scripts/sg_search_results.log
 ```
 
 > **Note:** When using CloudShell, make sure `PROFILE_NAME = None` in the script (this is the default).
@@ -74,7 +88,8 @@ python find_security_groups.py "Garden"
 
 **4.** Open the results:
 ```
-garden_security_groups.csv
+sg_search_results.xlsx
+sg_search_results.log
 ```
 
 ---
@@ -101,14 +116,10 @@ If not installed, follow the official guide: [https://docs.aws.amazon.com/cli/la
 
 ---
 
-### 3. boto3 (Python AWS SDK)
-Install it with:
+### 3. Python libraries
+Install the required libraries:
 ```powershell
-pip install boto3
-```
-Verify it is available:
-```powershell
-python -c "import boto3; print(boto3.__version__)"
+pip install boto3 openpyxl
 ```
 
 ---
@@ -190,38 +201,41 @@ Expected output:
 
 ## Running the Script
 
-Once logged in via SSO (Step 2 above), run the script using the virtual environment Python interpreter:
+Once logged in via SSO (Step 2 above), run the script:
 
 ```powershell
 aws sso login --profile <your-profile-name>
-python find_garden_security_groups.py
+python find_security_groups.py "Garden"
 ```
 
 The script will:
 1. Connect to your AWS account using the configured credentials
 2. Retrieve all active AWS regions
-3. Scan each region for Security Groups with **"garden"** in their name
-4. Save the results to a CSV file in the same folder
+3. Search all group types (EC2, AutoScaling, ELB, RDS, IAM, etc.) for names matching the query
+4. Save the results to **`sg_search_results.xlsx`** (Excel)
+5. Save the full execution log to **`sg_search_results.log`**
 
 ---
 
 ## Output
 
-The results are saved to:
-```
-sg_search_results.csv
-```
+The script produces two files in the same folder:
 
-The CSV contains the following columns:
+### `sg_search_results.xlsx`
+Formatted Excel file with a blue header row, auto-sized columns, and `AccountId` stored as text (no scientific notation).
 
 | Column | Description |
 |---|---|
-| `AccountId` | AWS Account ID that owns the Security Group |
-| `Region` | AWS region where the Security Group was found |
-| `SecurityGroupId` | The SG-ID (e.g. `sg-0abc123def456`) |
-| `SecurityGroupName` | Full name of the Security Group |
-| `VpcId` | ID of the VPC the Security Group belongs to |
-| `Description` | Description of the Security Group |
+| `Type` | Group type (e.g. EC2 Security Group, IAM User Group) |
+| `AccountId` | AWS Account ID (formatted as text) |
+| `Region` | AWS region, or `global` for IAM/Organizations |
+| `GroupId` | Unique identifier (SG-ID, ARN, IAM Group ID, etc.) |
+| `GroupName` | Name of the group |
+| `AdditionalInfo` | Type-specific details (VpcId, Min/Max, Protocol, etc.) |
+| `Description` | Description field where available |
+
+### `sg_search_results.log`
+Full text log of the script execution — regions scanned, groups found per type, access errors, and final summary. Useful for audit and troubleshooting.
 
 ---
 
@@ -243,5 +257,6 @@ REGIONS = ["eu-west-1", "eu-west-2", "eu-central-1"]
 | `Unable to locate credentials` | Run `aws sso login --profile <your-profile-name>` first |
 | `Token has expired` | Your SSO session expired — run `aws sso login --profile <your-profile-name>` again |
 | `AuthFailure` or `InvalidClientTokenId` | Wrong profile name — check `PROFILE_NAME` in the script matches your SSO profile |
-| `AccessDenied` in a region | Your role may not have `ec2:DescribeSecurityGroups` permission |
-| No results in CSV | No Security Groups with "garden" in the name were found in any region |
+| `[NO ACCESS]` shown in log | Your role lacks permission for that group type — see [IAM permissions](iam-policy-read-only.json) |
+| No results in Excel | No groups matching the query were found in any region |
+| `ModuleNotFoundError: openpyxl` | Run `pip install openpyxl` |
