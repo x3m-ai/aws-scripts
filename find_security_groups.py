@@ -4,9 +4,10 @@ Purpose: Find AWS Security Groups matching a name query and export results to CS
 
 Usage:
   python find_security_groups.py "Garden"
-  python find_security_groups.py "Garden&Prod"     # AND: name must contain BOTH
-  python find_security_groups.py "Garden|Dev"      # OR:  name must contain EITHER
-  python find_security_groups.py "Initial Garden"  # exact substring (case-insensitive)
+  python find_security_groups.py "Garden&Prod"          # AND: name must contain BOTH
+  python find_security_groups.py "Garden|Dev"           # OR:  name must contain EITHER
+  python find_security_groups.py "Initial Garden"       # exact substring
+  python find_security_groups.py "Garden" --case-sensitive  # case-sensitive match
 """
 
 import argparse
@@ -56,15 +57,17 @@ def parse_query(query):
         return "exact", [query.strip()]
 
 
-def matches(sg_name, mode, terms):
-    """Check if the security group name matches the query (always case-insensitive)."""
-    name_lower = sg_name.lower()
+def matches(sg_name, mode, terms, case_sensitive=False):
+    """Check if the security group name matches the query."""
+    # When case-insensitive (default): compare everything in lowercase
+    name = sg_name if case_sensitive else sg_name.lower()
+    search_terms = terms if case_sensitive else [t.lower() for t in terms]
     if mode == "and":
-        return all(t.lower() in name_lower for t in terms)
+        return all(t in name for t in search_terms)
     elif mode == "or":
-        return any(t.lower() in name_lower for t in terms)
+        return any(t in name for t in search_terms)
     else:  # exact substring
-        return terms[0].lower() in name_lower
+        return search_terms[0] in name
 
 
 def get_all_regions(session):
@@ -74,28 +77,32 @@ def get_all_regions(session):
     return [r["RegionName"] for r in response["Regions"]]
 
 
-def find_matching_sgs_in_region(session, region, mode, terms):
+def find_matching_sgs_in_region(session, region, mode, terms, case_sensitive=False):
     """Return Security Groups matching the query in a given region."""
     ec2 = session.client("ec2", region_name=region)
     results = []
 
     try:
-        # Use AWS-side wildcard filter to pre-filter and reduce data transfer.
-        # OR mode: pass all terms as multiple filter values (AWS treats them as OR).
-        # AND/exact: pass only the first term, then apply full logic client-side.
-        if mode == "or":
-            aws_filter_values = [f"*{t}*" for t in terms]
+        # AWS-side name filters are case-sensitive.
+        # When case-insensitive (default): skip the name filter, fetch all SGs,
+        # and rely entirely on client-side lowercase comparison.
+        # When case-sensitive: use the AWS filter to pre-filter by name.
+        if case_sensitive:
+            if mode == "or":
+                aws_filters = [{"Name": "group-name", "Values": [f"*{t}*" for t in terms]}]
+            else:
+                aws_filters = [{"Name": "group-name", "Values": [f"*{terms[0]}*"]}]
         else:
-            aws_filter_values = [f"*{terms[0]}*"]
+            aws_filters = []  # fetch all, filter client-side
 
         paginator = ec2.get_paginator("describe_security_groups")
         pages = paginator.paginate(
-            Filters=[{"Name": "group-name", "Values": aws_filter_values}]
+            Filters=aws_filters
         )
         for page in pages:
             for sg in page["SecurityGroups"]:
-                # Apply precise case-insensitive match client-side
-                if matches(sg["GroupName"], mode, terms):
+                # Client-side match (handles both case modes correctly)
+                if matches(sg["GroupName"], mode, terms, case_sensitive):
                     results.append({
                         "AccountId": sg.get("OwnerId", "N/A"),
                         "Region": region,
@@ -117,7 +124,7 @@ def main():
         epilog="""
 examples:
   python find_security_groups.py "Garden"
-      -> finds all SGs whose name contains 'garden' (case-insensitive)
+      -> finds all SGs whose name contains 'garden' (case-insensitive, default)
 
   python find_security_groups.py "Garden&Prod"
       -> finds all SGs whose name contains BOTH 'garden' AND 'prod'
@@ -127,21 +134,32 @@ examples:
 
   python find_security_groups.py "Initial Garden"
       -> finds all SGs whose name contains the exact substring 'initial garden'
+
+  python find_security_groups.py "Garden" --case-sensitive
+      -> finds only SGs whose name contains 'Garden' with exact casing
         """
     )
     parser.add_argument(
         "query",
         help="Search query. Use & for AND, | for OR, or plain text for substring match."
     )
+    parser.add_argument(
+        "--case-sensitive",
+        action="store_true",
+        default=False,
+        help="Enable case-sensitive matching. Default is case-insensitive."
+    )
     args = parser.parse_args()
 
     mode, terms = parse_query(args.query)
+    case_sensitive = args.case_sensitive
 
     print("=" * 60)
     print("  Security Group Finder")
-    print(f"  Query : {args.query}")
-    print(f"  Mode  : {mode.upper()} — terms: {terms}")
-    print(f"  Started: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    print(f"  Query          : {args.query}")
+    print(f"  Mode           : {mode.upper()} — terms: {terms}")
+    print(f"  Case-sensitive : {case_sensitive}")
+    print(f"  Started        : {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print("=" * 60)
 
     # Create a boto3 session.
@@ -157,7 +175,7 @@ examples:
 
     for region in regions_to_scan:
         print(f"  Checking region: {region} ...", end=" ")
-        found = find_matching_sgs_in_region(session, region, mode, terms)
+        found = find_matching_sgs_in_region(session, region, mode, terms, case_sensitive)
         print(f"{len(found)} SG(s) found")
         all_results.extend(found)
 
